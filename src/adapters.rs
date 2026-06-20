@@ -3,6 +3,8 @@ pub mod decompress;
 pub mod ffmpeg;
 pub mod mbox;
 pub mod postproc;
+pub mod rar;
+pub mod sevenz;
 use std::sync::Arc;
 pub mod sqlite;
 pub mod tar;
@@ -125,6 +127,8 @@ pub fn get_all_adapters(custom_adapters: Option<Vec<CustomAdapterConfig>>) -> Ad
         Arc::new(decompress::DecompressAdapter::new()),
         Arc::new(mbox::MboxAdapter::new()),
         Arc::new(tar::TarAdapter::new()),
+        Arc::new(rar::RarAdapter::new()),
+        Arc::new(sevenz::SevenzAdapter::new()),
         Arc::new(sqlite::SqliteAdapter::new()),
     ];
     adapters.extend(
