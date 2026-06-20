@@ -123,11 +123,10 @@ impl FileAdapter for SevenzAdapter {
         }
 
         let tmp_dir = tempfile::tempdir().context("failed to create temp dir for 7z extraction")?;
-        let tmp_dir_path = tmp_dir.path().to_path_buf();
 
         let extract_output = tokio::process::Command::new("7z")
             .args(["x", "-y"])
-            .arg(format!("-o{}", tmp_dir_path.display()))
+            .arg(format!("-o{}", tmp_dir.path().display()))
             .arg(&filepath_hint)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -140,6 +139,8 @@ impl FileAdapter for SevenzAdapter {
         }
 
         let s = stream! {
+            let tmp_dir = tmp_dir;
+            let tmp_dir_path = tmp_dir.path().to_path_buf();
             for entry_path_str in &entries {
                 let full_path = tmp_dir_path.join(entry_path_str);
                 debug!(
@@ -179,9 +180,6 @@ impl FileAdapter for SevenzAdapter {
                     }
                 }
             }
-            if let Err(e) = tokio::fs::remove_dir_all(&tmp_dir_path).await {
-                warn!("failed to clean up temp dir {}: {}", tmp_dir_path.display(), e);
-            }
         };
 
         Ok(Box::pin(s))
@@ -191,8 +189,11 @@ impl FileAdapter for SevenzAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{preproc::loop_adapt, test_utils::*};
+    use crate::preproc::loop_adapt;
+    use crate::test_utils::{adapted_to_vec, simple_adapt_info, simple_fs_adapt_info, test_data_dir};
     use anyhow::Result;
+    use std::path::PathBuf;
+    use pretty_assertions::assert_eq;
 
     #[tokio::test]
     async fn test_7z_not_available() -> Result<()> {

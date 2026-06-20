@@ -53,25 +53,27 @@ enum RarTool {
 }
 
 async fn detect_rar_tool() -> Option<RarTool> {
-    if tokio::process::Command::new("unrar")
+    let unrar_res = tokio::process::Command::new("unrar")
         .arg("--help")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .output()
-        .await
-        .is_ok_and(|o| o.status.success())
-    {
-        return Some(RarTool::Unrar);
+        .await;
+    if let Ok(output) = unrar_res {
+        if output.status.success() {
+            return Some(RarTool::Unrar);
+        }
     }
-    if tokio::process::Command::new("7z")
+    let sevenz_res = tokio::process::Command::new("7z")
         .arg("--help")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .output()
-        .await
-        .is_ok_and(|o| o.status.success())
-    {
-        return Some(RarTool::SevenZ);
+        .await;
+    if let Ok(output) = sevenz_res {
+        if output.status.success() {
+            return Some(RarTool::SevenZ);
+        }
     }
     None
 }
@@ -287,11 +289,10 @@ async fn adapt_with_7z(
 
     let tmp_dir =
         tempfile::tempdir().context("failed to create temp dir for RAR extraction via 7z")?;
-    let tmp_dir_path = tmp_dir.path().to_path_buf();
 
     let extract_output = tokio::process::Command::new("7z")
         .args(["x", "-y"])
-        .arg(format!("-o{}", tmp_dir_path.display()))
+        .arg(format!("-o{}", tmp_dir.path().display()))
         .arg(&filepath_hint)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -304,6 +305,8 @@ async fn adapt_with_7z(
     }
 
     let s = stream! {
+        let tmp_dir = tmp_dir;
+        let tmp_dir_path = tmp_dir.path().to_path_buf();
         for entry_path_str in &entries {
             let full_path = tmp_dir_path.join(entry_path_str);
             debug!(
@@ -343,9 +346,6 @@ async fn adapt_with_7z(
                 }
             }
         }
-        if let Err(e) = tokio::fs::remove_dir_all(&tmp_dir_path).await {
-            warn!("failed to clean up temp dir {}: {}", tmp_dir_path.display(), e);
-        }
     };
 
     Ok(Box::pin(s))
@@ -354,8 +354,10 @@ async fn adapt_with_7z(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{preproc::loop_adapt, test_utils::*};
+    use crate::preproc::loop_adapt;
+    use crate::test_utils::{adapted_to_vec, simple_adapt_info, simple_fs_adapt_info, test_data_dir};
     use anyhow::Result;
+    use std::path::PathBuf;
     use pretty_assertions::assert_eq;
 
     #[tokio::test]
