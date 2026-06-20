@@ -1,0 +1,25 @@
+# Based on https://github.com/actions-rs/meta/blob/master/recipes/quickstart.md
+#
+# While our "example" application has platform-specific code,
+# for simplicity we are compiling and testing everything in a nix-on-Linux environment only.
+
+on: [push, pull_request]
+
+name: ci
+
+jobs:
+  nix-flake-check:
+    name: nix flake check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v21
+
+      - name: Ensure the build succeeds
+        run: nix build
+
+      - name: Run `nix flake check` to run formatters, linters, and tests
+        run: nix flake check --print-build-logs
